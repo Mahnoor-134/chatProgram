@@ -11,12 +11,12 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.Scanner;
 
-import java.awt.BorderLayout;
-import javax.swing.JFrame;
-import javax.swing.JOptionPane;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.net.UnknownHostException;
+import java.util.HashMap;
+
+
 
 /**
  *
@@ -24,74 +24,78 @@ import javax.swing.JTextField;
  */
 public class Client {
 
-    String serverAddress;
-    Scanner in;
-    PrintWriter out;
-    JFrame frame = new JFrame("Chatter");
-    JTextField textField = new JTextField(50);
-    JTextArea messageArea = new JTextArea(16, 50);
+    HashMap<String, Int> meddelande = new HashMap<>();
+    private Socket socket = null;
+    private DataInputStream input = null;
+    private DataOutputStream out = null;
 
-    /**
-     * Constructs the client by laying out the GUI and registering a listener
-     * with the textfield so that pressing Return in the listener sends the
-     * textfield contents to the server. Note however that the textfield is
-     * initially NOT editable, and only becomes editable AFTER the client
-     * receives the NAMEACCEPTED message from the server.
-     */
-    public Client(String serverAddress) {
-        this.serverAddress = serverAddress;
+    Scanner in = new Scanner(System.in);
+    int val;
 
-        textField.setEditable(false);
-        messageArea.setEditable(false);
-        frame.getContentPane().add(textField, BorderLayout.SOUTH);
-        frame.getContentPane().add(new JScrollPane(messageArea), BorderLayout.CENTER);
-        frame.pack();
+    public Client(String address, int port) throws IOException {
 
-        // Send on enter then clear to prepare for next message
-        textField.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                out.println(textField.getText());
-                textField.setText("");
+        do {
+            System.out.println("Kommandon"); // fråga om uppgifter 
+            System.out.println("1. Lista alla uppkopplade");
+            System.out.println("2. Skriv ett meddelande till någon");
+            System.out.println("3. Skriv ett medelande till alla");
+            System.out.println("0. Avsluta ");
+
+            val = in.nextInt();
+
+            switch (val) {
+
+                case 1:
+
+                    break;
+
+                default:
+                    System.out.println("Ogiltig val");
+                    break;
             }
-        });
-    }
 
-    private String getName() {
-        return JOptionPane.showInputDialog(frame, "Choose a screen name:", "Screen name selection",
-                JOptionPane.PLAIN_MESSAGE);
-    }
+        } while (val != 0);
+        
+         try{
+            socket = new Socket(address, port);
+            
+            while (true){
+                
+                System.out.println(")";
+            System.out.println("Connected");
+            input = new DataInputStream(System.in);
+            out = new DataOutputStream(socket.getOutputStream());
+        } catch (UnknownHostException u) {
+            System.out.println(u);
+        } catch (IOException i) {
+            System.out.println(i);
+        }
 
-    private void run() throws IOException {
+        String line = "";
+        while (!line.equals("Over")) {
+            try {
+                line = input.readLine();
+                out.writeUTF(line);
+            } catch (IOException i) {
+                System.out.println(i);
+            }
+        }
+
         try {
-            var socket = new Socket(serverAddress, 59001);
-            in = new Scanner(socket.getInputStream());
-            out = new PrintWriter(socket.getOutputStream(), true);
-
-            while (in.hasNextLine()) {
-                var line = in.nextLine();
-                if (line.startsWith("SUBMITNAME")) {
-                    out.println(getName());
-                } else if (line.startsWith("NAMEACCEPTED")) {
-                    this.frame.setTitle("Chatter - " + line.substring(13));
-                    textField.setEditable(true);
-                } else if (line.startsWith("MESSAGE")) {
-                    messageArea.append(line.substring(8) + "\n");
-                }
-            }
-        } finally {
-            frame.setVisible(false);
-            frame.dispose();
+            input.close();
+            out.close();
+            socket.close();
+        } catch (IOException i) {
+            System.out.println(i);
         }
     }
+        
+       
+        
+       
 
-    public static void main(String[] args) throws Exception {
-        if (args.length != 1) {
-            System.err.println("Pass the server IP as the sole command line argument");
-            return;
-        }
-        var client = new Client(args[0]);
-        client.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        client.frame.setVisible(true);
-        client.run();
+    public static void main(String args[]) {
+        Client client = new Client("127.0.0.1", 5000);
+
     }
 }

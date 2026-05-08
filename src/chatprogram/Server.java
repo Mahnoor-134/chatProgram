@@ -4,6 +4,8 @@
  */
 package chatprogram;
 
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
@@ -12,112 +14,62 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Scanner;
 import java.util.concurrent.Executors;
+import java.net.DatagramSocket;
+import java.net.InetSocketAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 
 /**
  *
  * @author okama01
  */
 public class Server {
-// All client names, so we can check for duplicates upon registration.
 
-    private static Set<String> names = new HashSet<>();
+    // Initialize socket and input stream
+    private Socket s = null;
+    private ServerSocket ss = null;
+    private DataInputStream in = null;
 
-    // The set of all the print writers for all the clients, used for broadcast.
-    private static Set<PrintWriter> writers = new HashSet<>();
+    // Constructor with port
+    public Server(int port) {
 
-    public static void main(String[] args) throws Exception {
-        System.out.println("The chat server is running...");
-        var pool = Executors.newFixedThreadPool(500);
-        try (var listener = new ServerSocket(59001)) {
-            while (true) {
-                pool.execute(new Handler(listener.accept()));
+        // Starts server and waits for a connection
+        try {
+            ss = new ServerSocket(port);
+            System.out.println("Server started");
+
+            System.out.println("Waiting for a client ...");
+
+            s = ss.accept();
+            System.out.println("Client accepted");
+
+            // Takes input from the client socket
+            in = new DataInputStream(
+                    new BufferedInputStream(s.getInputStream()));
+
+            String m = "";
+
+            // Reads message from client until "Over" is sent
+            while (!m.equals("Over")) {
+                try {
+                    m = in.readUTF();
+                    System.out.println(m);
+
+                } catch (IOException i) {
+                    System.out.println(i);
+                }
             }
+            System.out.println("Closing connection");
+
+            // Close connection
+            s.close();
+            in.close();
+        } catch (IOException i) {
+            System.out.println(i);
         }
     }
 
-    /**
-     * The client handler task.
-     */
-    private static class Handler implements Runnable {
-
-        private String name;
-        private Socket socket;
-        private Scanner in;
-        private PrintWriter out;
-
-        /**
-         * Constructs a handler thread, squirreling away the socket. All the
-         * interesting work is done in the run method. Remember the constructor
-         * is called from the server's main method, so this has to be as short
-         * as possible.
-         */
-        public Handler(Socket socket) {
-            this.socket = socket;
-        }
-
-        /**
-         * Services this thread's client by repeatedly requesting a screen name
-         * until a unique one has been submitted, then acknowledges the name and
-         * registers the output stream for the client in a global set, then
-         * repeatedly gets inputs and broadcasts them.
-         */
-        public void run() {
-            try {
-                in = new Scanner(socket.getInputStream());
-                out = new PrintWriter(socket.getOutputStream(), true);
-
-                // Keep requesting a name until we get a unique one.
-                while (true) {
-                    out.println("SUBMITNAME");
-                    name = in.nextLine();
-                    if (name == null) {
-                        return;
-                    }
-                    synchronized (names) {
-                        if (!name.isBlank() && !names.contains(name)) {
-                            names.add(name);
-                            break;
-                        }
-                    }
-                }
-
-                // Now that a successful name has been chosen, add the socket's print writer
-                // to the set of all writers so this client can receive broadcast messages.
-                // But BEFORE THAT, let everyone else know that the new person has joined!
-                out.println("NAMEACCEPTED " + name);
-                for (PrintWriter writer : writers) {
-                    writer.println("MESSAGE " + name + " has joined");
-                }
-                writers.add(out);
-
-                // Accept messages from this client and broadcast them.
-                while (true) {
-                    String input = in.nextLine();
-                    if (input.toLowerCase().startsWith("/quit")) {
-                        return;
-                    }
-                    for (PrintWriter writer : writers) {
-                        writer.println("MESSAGE " + name + ": " + input);
-                    }
-                }
-            } catch (Exception e) {
-                System.out.println(e);
-            } finally {
-                if (out != null) {
-                    writers.remove(out);
-                }
-                if (name != null) {
-                    System.out.println(name + " is leaving");
-                    names.remove(name);
-                    for (PrintWriter writer : writers) {
-                        writer.println("MESSAGE " + name + " has left");
-                    }
-                }
-                try {
-                    socket.close();
-                } catch (IOException e) {
-                }
-            }
-        }
+    public static void main(String args[]) {
+        Server s = new Server(5000);
     }
 }
